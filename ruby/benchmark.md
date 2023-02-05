@@ -3,7 +3,6 @@
 ```ruby
 require 'benchmark'
 
-rows = []
 result = Benchmark.realtime do
   # 処理を書く
 end
