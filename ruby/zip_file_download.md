@@ -12,6 +12,13 @@ url = 'http://www.post.japanpost.jp/zipcode/dl/kogaki/zip/ken_all.zip'
 filename = 'ken_all.zip'
 
 File.open(filename, "wb") do |file|
-  file.write URI.open(url).read
+  file.write URI.parse(url).open.read
 end
+```
+
+ちなみに、
+`URI.open(url)`だとrubocopに怒られる。
+```
+$ rubocop
+The use of URI.open is a serious security risk
 ```
