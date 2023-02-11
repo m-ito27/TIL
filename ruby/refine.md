@@ -1,5 +1,8 @@
 ## refineを使うと、オープンクラスをした時の影響をコントロールしやすい
 
+Refinementsが有効なコードは、リファインされた側のクラスのコードよりも優先される。
+当然インクルードやプリペンドよりも優先。
+
 ```ruby
 module StringExtensions
   refine String do
