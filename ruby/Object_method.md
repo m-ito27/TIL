@@ -15,3 +15,12 @@ p m = MyClass.new.method(:my_method)
 p m.call
 # => "Hello"
 ```
+
+methodオブジェクトはto_procでProcに変換もできる
+
+```ruby
+p m.to_proc
+# => #<Proc:0x0000000102f66690 (lambda)>
+p m.to_proc.call
+# => "Hello"
+```
