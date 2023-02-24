@@ -82,3 +82,23 @@ p D.new.twisted_method
 ```
 
 ちなみに、上のコードでinstance_execをinstance_evalに帰ると、ArgumentErrorを起こす（引数は取れない）
+
+## instance_evalはカレントクラスをレシーバの得意クラスに変更する
+
+```ruby
+class MyClass; end
+
+obj = MyClass.new
+obj2 = MyClass.new
+
+obj.instance_eval do
+  def good
+    'Good'
+  end
+end
+
+p obj.good
+# => 'good'
+p obj2.good
+# => NoMethodError
+```
