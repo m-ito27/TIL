@@ -102,3 +102,19 @@ p obj.good
 p obj2.good
 # => NoMethodError
 ```
+
+## 文字列を受け取って式として評価もできる。
+
+ただ、可能であれば避けた方が良い。
+- シンタックスハイライトが使えない
+- 構文エラーに気づかない
+
+
+```ruby
+array = ['a', 'b', 'c']
+x = 'd'
+array.instance_eval "self[1] = x"
+
+p array
+# => ["a", "d", "c"]
+```
