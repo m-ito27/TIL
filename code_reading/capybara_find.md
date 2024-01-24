@@ -1,8 +1,10 @@
 ## capybaraのfindメソッドを読む
 
-- 目的
+### 目的
 
 `find('h1', text: 'Books')`のように書くと、要素を取得できるが、取得方法と、要素をどのように持っていれば要素ごとに取得できるのかを知りたい。
+
+### コードリーディング
 
 ```ruby
 # vendor/bundle/ruby/3.1.0/gems/capybara-3.39.2/lib/capybara/node/finders.rb
@@ -33,7 +35,6 @@ synced_resolve Capybara::Queries::SelectorQuery.new(*args, **options, &optional_
 
 def synced_resolve(query)
   synchronize(query.wait) do
-    binding.irb
     if prefer_exact?(query)
       result = query.resolve_for(self, true)
       result = query.resolve_for(self, false) if result.empty? && query.supports_exact? && !query.exact?
@@ -114,5 +115,112 @@ def find_by(format, selector, uses_visibility:, texts:, styles:, position:)
     hints = gather_hints(els, uses_visibility: uses_visibility, styles: styles, position: position)
   end
   els.map.with_index { |el, idx| build_node(el, hints[idx] || {}) }
+end
+```
+
+ここで、`find_context`はChromeドライバーのインスタンスでした。
+
+```ruby
+find_context.class
+#=> Selenium::WebDriver::Chrome::Driver
+```
+
+`find_elements`した結果は、ドライバーの要素のインスタンスのようです。
+
+```ruby
+find_context.find_elements(format, selector).first.class
+#=> Selenium::WebDriver::Element
+```
+
+`find_nodes_by_selector_format`は、cssセレクターで絞ってるのみ。
+textでの絞り込みは、`result_for`メソッドのうち、`Capybara::Result.new(ordered_results(children), self)`で行っている。
+
+`Capybara::Result`は、説明にある通り、`Capybara::Node::Element`のコレクションを返すクラスです。
+
+> A {Capybara::Result} represents a collection of {Capybara::Node::Element} on the page. It is possible to interact with this
+collection similar to an Array because it implements Enumerable and offers the following Array methods through delegation:
+
+```ruby
+# vendor/bundle/ruby/3.1.0/gems/capybara-3.39.2/lib/capybara/result.rb
+
+def initialize(elements, query)
+  @elements = elements
+  @result_cache = []
+  @filter_errors = []
+  @results_enum = lazy_select_elements { |node| query.matches_filters?(node, @filter_errors) }
+  @query = query
+  @allow_reload = false
+end
+```
+
+このうち、以下が絞り込みの場所。
+```
+@results_enum = lazy_select_elements { |node| query.matches_filters?(node, @filter_errors) }
+```
+
+`matches_filters`を見てみる。
+
+```ruby
+# capybara-3.39.2/lib/capybara/queries/selector_query.rb
+
+def matches_filters?(node, node_filter_errors = [])
+  return true if (@resolved_node&.== node) && options[:allow_self]
+
+  matches_locator_filter?(node) &&
+    matches_system_filters?(node) &&
+    matches_spatial_filters?(node) &&
+    matches_node_filters?(node, node_filter_errors) &&
+    matches_filter_block?(node)
+rescue *(node.respond_to?(:session) ? node.session.driver.invalid_element_errors : [])
+  false
+end
+```
+
+例えば、textが存在しなくてテストが失敗する場合、どこが失敗するかというと、`matches_system_filters?(node)`が落ちていた。
+このメソッドの中でも色々な観点でテストしていた、、、
+
+```ruby
+def matches_system_filters?(node)
+  applied_filters << :system
+
+  matches_visibility_filters?(node) &&
+    matches_id_filter?(node) &&
+    matches_class_filter?(node) &&
+    matches_style_filter?(node) &&
+    matches_focused_filter?(node) &&
+    matches_text_filter?(node) &&
+    matches_exact_text_filter?(node)
+end
+```
+
+このうち、落ちていたのは命名通り`matches_text_filter?(node)`でした。
+
+```ruby
+def matches_text_filter?(node)
+  value = options[:text]
+  return true unless value
+  return matches_text_exactly?(node, value) if exact_text == true && !value.is_a?(Regexp)
+
+  regexp = value.is_a?(Regexp) ? value : Regexp.escape(value.to_s)
+  matches_text_regexp?(node, regexp)
+end
+```
+
+`matches_text_regexp?`を見てみる
+
+```ruby
+def matches_text_exactly?(node, value)
+  regexp = value.is_a?(Regexp) ? value : /\A#{Regexp.escape(value.to_s)}\z/
+  matches_text_regexp(node, regexp).then { |m| m&.pre_match == '' && m&.post_match == '' }
+end
+```
+
+`matches_text_regexp`を見てみる
+
+```ruby
+def matches_text_regexp(node, regexp)
+  text_visible = visible
+  text_visible = :all if text_visible == :hidden
+  node.text(text_visible, normalize_ws: normalize_ws).match(regexp)
 end
 ```
