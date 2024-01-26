@@ -7,7 +7,7 @@
 ### コードリーディング
 
 ```ruby
-# vendor/bundle/ruby/3.1.0/gems/capybara-3.39.2/lib/capybara/node/finders.rb
+# capybara-3.39.2/lib/capybara/node/finders.rb
 
 def find(*args, **options, &optional_filter_block)
   options[:session_options] = session_options
@@ -31,7 +31,7 @@ synced_resolve Capybara::Queries::SelectorQuery.new(*args, **options, &optional_
 `synced_resolve`を見てみる。
 
 ```ruby
-# vendor/bundle/ruby/3.1.0/gems/capybara-3.39.2/lib/capybara/node/finders.rb
+# capybara-3.39.2/lib/capybara/node/finders.rb
 
 def synced_resolve(query)
   synchronize(query.wait) do
@@ -57,6 +57,7 @@ end
 `resolve_for`を見てみる。
 
 ```ruby
+# capybara-3.39.2/lib/capybara/queries/selector_query.rb
 def resolve_for(node, exact = nil)
   applied_filters.clear
   @filter_cache.clear
@@ -141,7 +142,7 @@ textでの絞り込みは、`result_for`メソッドのうち、`Capybara::Resul
 collection similar to an Array because it implements Enumerable and offers the following Array methods through delegation:
 
 ```ruby
-# vendor/bundle/ruby/3.1.0/gems/capybara-3.39.2/lib/capybara/result.rb
+# capybara-3.39.2/lib/capybara/result.rb
 
 def initialize(elements, query)
   @elements = elements
@@ -224,3 +225,107 @@ def matches_text_regexp(node, regexp)
   node.text(text_visible, normalize_ws: normalize_ws).match(regexp)
 end
 ```
+
+`node.text`で要素のテキストを、`regexp`は指定したテキストで比べている。
+`match`とあるように、部分一致（要素名が指定したテキストを含む）でも要素を見つけてくれる。
+
+```ruby
+node.text(text_visible, normalize_ws: normalize_ws)
+#=> 'Books' # HTML上にある要素のテキスト
+regexp
+#=> find('h1', text: xxx)のxxxの部分
+```
+
+nodeは、`Capybara::Node::Element`のインスタンス。
+textメソッドで何をしているのかを見てみる。
+
+```ruby
+# capybara-3.39.2/lib/capybara/node/element.rb
+def text(type = nil, normalize_ws: false)
+  type ||= :all unless session_options.ignore_hidden_elements || session_options.visible_text_only
+  txt = synchronize { type == :all ? base.all_text : base.visible_text }
+  normalize_ws ? txt.gsub(/[[:space:]]+/, ' ').strip : txt
+end
+```
+
+ここで、`base`は`Capybara::Selenium::ChromeNode`のインスタンス。
+```ruby
+base
+#=> #<Capybara::Selenium::ChromeNode tag="h1" path="/HTML/BODY[1]/H1[1]">
+```
+
+この`visible_text`を見てみる。
+
+```ruby
+# capybara-3.39.2/lib/capybara/selenium/node.rb
+
+def visible_text
+  raise NotImplementedError, 'Getting visible text is not currently supported directly on shadow roots' if shadow_root?
+
+  native.text
+end
+```
+
+`native`は、`Selenium::WebDriver::Element`のインスタンス。
+
+```ruby
+native
+#<Selenium::WebDriver::Element:0x2752d60c0325459a id="F179ECD68309B6E745A5B07B5E932EC9_element_2">
+```
+
+`Selenium::WebDriver::Element`の`text`メソッドを見てみる。
+
+```ruby
+# selenium-webdriver-4.10.0/lib/selenium-webdriver.rb
+
+def text
+  bridge.element_text @id
+end
+```
+
+`bridge`は、`Selenium::WebDriver::Remote::Bridge`クラスのインスタンス。
+
+```ruby
+# selenium-webdriver-4.10.0/lib/selenium/webdriver/remote/bridge.rb
+
+def element_text(element)
+  execute :get_element_text, id: element
+end
+
+private
+
+#
+# executes a command on the remote server.
+#
+# @return [WebDriver::Remote::Response]
+#
+
+def execute(command, opts = {}, command_hash = nil)
+  verb, path = commands(command) || raise(ArgumentError, "unknown command: #{command.inspect}")
+  path = path.dup
+
+  path[':session_id'] = session_id if path.include?(':session_id')
+
+  begin
+    opts.each { |key, value| path[key.inspect] = escaper.escape(value.to_s) }
+  rescue IndexError
+    raise ArgumentError, "#{opts.inspect} invalid for #{command.inspect}"
+  end
+
+  WebDriver.logger.debug("-> #{verb.to_s.upcase} #{path}", id: :command)
+  http.call(verb, path, command_hash)['value']
+end
+
+def commands(command)
+  COMMANDS[command]
+end
+```
+
+これをみると、webdriverのAPIを叩きに行っているのがわかる。
+https://w3c.github.io/webdriver/#dfn-get-element-text
+
+> The Get Element Text command intends to return an element’s text “as rendered”
+
+とのことなので、これでテキストを取得しているんですね。
+
+
