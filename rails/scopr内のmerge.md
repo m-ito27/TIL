@@ -61,3 +61,5 @@ User.where(email: 'abc@example.com').test
 # WHERE "users"."email" = "abc@example.com"
 # AND ("users"."id" <= 5 OR "books"."id" <= 5)
 ```
+
+orの性質として、２つのツリーの差分を見る
