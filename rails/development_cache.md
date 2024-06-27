@@ -1,0 +1,3 @@
+- Railsアプリではデフォルトではdevelopment環境ではキャッシュは無効になっている
+  - `config/environments/development.rb`
+- `rails dev:cache`コマンドを実行することでキャッシュを利用できる
