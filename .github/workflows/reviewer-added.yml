@@ -1,0 +1,14 @@
+name: Reviewer added
+
+on:
+  pull_request:
+    types: [review_requested]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reviewer added
+        run: |
+          echo "Reviewer added to pull request ${GITHUB_REPOSITORY}#${{ github.event.number }}"
+          echo "Requested reviewer: ${{ github.event.requested_reviewer.login }}"
